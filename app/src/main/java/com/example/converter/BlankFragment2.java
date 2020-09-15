@@ -9,6 +9,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -34,7 +35,7 @@ public class BlankFragment2 extends Fragment {
     private EditText editText1;
     private TextView editText2;
     private TextView textView;
-
+    private Button button;
 
     // TODO: Rename parameter arguments, choose names that match
     // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
@@ -88,6 +89,15 @@ public class BlankFragment2 extends Fragment {
         textView = view.findViewById(R.id.textView);
         arrayList_CharCode = new ArrayList<>();
         QueryURL();
+        button = view.findViewById(R.id.button);
+
+        button.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Swap();
+            }
+        });
+
         return view;
     }
 
@@ -161,12 +171,10 @@ public class BlankFragment2 extends Fragment {
 
                     @Override
                     public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-
                     }
 
                     @Override
                     public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-
                     }
 
                     @Override
@@ -212,5 +220,12 @@ public class BlankFragment2 extends Fragment {
         BigDecimal sum2 = new BigDecimal(Double.toString(sum));
         sum2 = sum2.setScale(2, RoundingMode.HALF_UP);
         editText2.setText("" + sum2);
+    }
+
+    public void Swap(){
+        int spinner_save;
+        spinner_save = spinner.getSelectedItemPosition();
+        spinner.setSelection(spinner2.getSelectedItemPosition());
+        spinner2.setSelection(spinner_save);
     }
 }
