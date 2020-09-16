@@ -1,28 +1,20 @@
 package com.example.converter;
 
-import android.graphics.Color;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.AsyncTask;
 import android.os.Bundle;
 
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
-import android.os.Handler;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import java.io.IOException;
-import java.net.URL;
 import java.util.ArrayList;
-import java.util.Iterator;
-
-import static com.example.converter.DAO.getResponceFromURL;
 
 /**
  * A simple {@link Fragment} subclass.
@@ -31,11 +23,15 @@ import static com.example.converter.DAO.getResponceFromURL;
  */
 public class BlankFragment1 extends Fragment {
 
-    private SwipeRefreshLayout mSwipeRefreshLayout;
     private ArrayList<Valute> arrayList;
     private RecyclerView recyclerList;
     private ListAdapter listAdapter;
+    private Valute valute;
 
+    private DBHelper dbHelper;
+    private SQLiteDatabase db;
+
+    final String LOG_TAG = "myLogs";
 
     // TODO: Rename parameter arguments, choose names that match
     // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
@@ -80,91 +76,63 @@ public class BlankFragment1 extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        // Inflate the layout for this fragment
         View view = inflater.inflate(R.layout.fragment_blank1, container, false);
-        mSwipeRefreshLayout = view.findViewById(R.id.swipeRefresh);
+
         recyclerList = view.findViewById(R.id.recyclerView);
-        QueryURL();
-        mSwipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
-            @Override
-            public void onRefresh() {
-                new Handler().postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        if(listAdapter != null) {
-                            listAdapter.clearItems();
-                            QueryURL();
-                        }
-                        // Отменяем анимацию обновления
-                        mSwipeRefreshLayout.setRefreshing(false);
-                    }
-                }, 1000);
-            }
-        });
-        mSwipeRefreshLayout.setColorSchemeColors(
-                Color.RED, Color.GREEN, Color.BLUE, Color.CYAN);
+
+        LinearLayoutManager layoutManager = new LinearLayoutManager(getContext());
+        recyclerList.setLayoutManager(layoutManager);
+        recyclerList.setHasFixedSize(true);
+
+        UpdateFrame();
+
         return view;
     }
 
-    class CBR_query extends AsyncTask<URL, Void, String> {
-        @Override
-        protected String doInBackground(URL... urls) {
-            String response = null;
-            try {
-                response = getResponceFromURL(urls[0]);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            return response;
+    public void UpdateFrame(){
+        Log.d(LOG_TAG, "update");
+        listAdapter = new ListAdapter();
+        arrayList = new ArrayList<>();
+        db = connectDB();
+        // делаем запрос на выборку всех данных из таблицы valute, получаем Cursor
+        Cursor c = db.query("valute", null, null, null, null, null, null);
+
+        // ставим позицию курсора на первую строку выборки
+        // если в выборке нет строк, вернется false
+        if (c.moveToFirst()) {
+            // определяем номера столбцов по имени в выборке
+            int idColIndex = c.getColumnIndex("id");
+            int nameColIndex = c.getColumnIndex("name");
+            int charcodeColIndex = c.getColumnIndex("charcode");
+            int valueColIndex = c.getColumnIndex("value");
+            int previousColIndex = c.getColumnIndex("previous");
+            do {
+                Log.d(LOG_TAG,
+                        "ID = " + c.getInt(idColIndex) +
+                                ", name = " + c.getString(nameColIndex) +
+                                ", charcode = " + c.getString(charcodeColIndex) +
+                                ", value = " + c.getString(valueColIndex) +
+                                ", previous = " + c.getString(previousColIndex));
+                // получаем значения по номерам столбцов
+                valute = new Valute(c.getString(nameColIndex), c.getString(charcodeColIndex), c.getString(valueColIndex), c.getString(previousColIndex));
+                arrayList.add(valute);
+                // переход на следующую строку
+                // а если следующей нет (текущая - последняя), то false - выходим из цикла
+            } while (c.moveToNext());
         }
-
-        @Override
-        protected void onPostExecute(String responce) {
-            arrayList = new ArrayList<>();
-            String Name = null;
-            String CharCode = null;
-            String Value = null;
-            String Previous = null;
-            Valute valute = null;
-
-            try {
-                JSONObject jsonResponce = new JSONObject(responce);
-                JSONObject jsonObject = jsonResponce.getJSONObject("Valute");
-                Iterator<String> keys = jsonObject.keys();
-                while (keys.hasNext()) {
-                    String key = keys.next();
-                    Name = jsonObject.getJSONObject(key).getString("Name");
-                    CharCode = jsonObject.getJSONObject(key).getString("CharCode");
-                    Value = jsonObject.getJSONObject(key).getString("Value");
-                    Previous = jsonObject.getJSONObject(key).getString("Previous");
-                    valute = new Valute(Name, CharCode, Value, Previous);
-                    arrayList.add(valute);
-                }
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-
-            LinearLayoutManager layoutManager = new LinearLayoutManager(getContext());
-            recyclerList.setLayoutManager(layoutManager);
-            recyclerList.setHasFixedSize(true);
-            listAdapter = new ListAdapter();
-            listAdapter.setItems(arrayList);
-            recyclerList.setAdapter(listAdapter);
-        }
+        //  передаем адаптеру полученный список объектов класса Valute
+        listAdapter.setItems(arrayList);
+        //  устанавливаем адаптер для recycler list
+        recyclerList.setAdapter(listAdapter);
+        c.close();
     }
 
-    public void QueryURL() {
-        URL url = null;
-        try {
-            url = new URL("https://www.cbr-xml-daily.ru/daily_json.js");
-            new CBR_query().execute(url);
-        } catch (
-                IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public ListAdapter getList() {
-        return listAdapter;
+    //  для подключения к БД
+    public SQLiteDatabase connectDB() {
+        // создаем объект для создания и управления версиями БД
+        dbHelper = new DBHelper(getContext());
+        // подключаемся к БД
+        db = dbHelper.getWritableDatabase();
+        return db;
     }
 }
