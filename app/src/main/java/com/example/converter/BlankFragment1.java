@@ -107,12 +107,12 @@ public class BlankFragment1 extends Fragment {
             int valueColIndex = c.getColumnIndex("value");
             int previousColIndex = c.getColumnIndex("previous");
             do {
-                Log.d(LOG_TAG,
-                        "ID = " + c.getInt(idColIndex) +
-                                ", name = " + c.getString(nameColIndex) +
-                                ", charcode = " + c.getString(charcodeColIndex) +
-                                ", value = " + c.getString(valueColIndex) +
-                                ", previous = " + c.getString(previousColIndex));
+//                Log.d(LOG_TAG,
+//                        "ID = " + c.getInt(idColIndex) +
+//                                ", name = " + c.getString(nameColIndex) +
+//                                ", charcode = " + c.getString(charcodeColIndex) +
+//                                ", value = " + c.getString(valueColIndex) +
+//                                ", previous = " + c.getString(previousColIndex));
                 // получаем значения по номерам столбцов
                 valute = new Valute(c.getString(nameColIndex), c.getString(charcodeColIndex), c.getString(valueColIndex), c.getString(previousColIndex));
                 arrayList.add(valute);

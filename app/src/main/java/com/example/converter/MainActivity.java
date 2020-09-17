@@ -11,6 +11,8 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
+import android.view.View;
+import android.widget.TextView;
 
 import com.google.android.material.tabs.TabLayout;
 
@@ -25,7 +27,13 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketAddress;
 import java.net.URL;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.Iterator;
 
 import static com.example.converter.DAO.getResponceFromURL;
@@ -41,39 +49,49 @@ public class MainActivity extends AppCompatActivity {
     private SwipeRefreshLayout mSwipeRefreshLayout;
     private SectionsPagerAdapter sectionsPagerAdapter;
 
+    private TextView text_data;
+    private TextView no_internet;
+
     final String LOG_TAG = "myLogs";
 
-
-    static class InternetCheck extends AsyncTask<Void, Void, Boolean> {
-
-        private Consumer mConsumer;
-
-        public interface Consumer {
-            void accept(Boolean internet);
-        }
-
-        public InternetCheck(Consumer consumer) {
-            mConsumer = consumer;
-            execute();
-        }
+    class InternetCheck extends AsyncTask<Void, Void, Boolean> {
 
         @Override
         protected Boolean doInBackground(Void... voids) {
+            Runtime runtime = Runtime.getRuntime();
             try {
-                Socket sock = new Socket();
-                sock.connect(new InetSocketAddress("8.8.8.8", 53), 1500);
-                sock.close();
-                return true;
+                Process ipProcess = runtime.exec("/system/bin/ping -c 1 8.8.8.8");
+                int exitValue = ipProcess.waitFor();
+                System.out.println(exitValue);
+                return (exitValue == 1);
             } catch (IOException e) {
-                return false;
+                e.printStackTrace();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
+
+            return false;
         }
 
         @Override
         protected void onPostExecute(Boolean internet) {
-            mConsumer.accept(internet);
+            if (internet) {
+                clearTable();
+                QueryURL();
+            } else {
+                no_internet.setVisibility(View.VISIBLE);
+                new Handler().postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        no_internet.setVisibility(View.GONE);
+                    }
+                }, 5000);
+
+            }
+            mSwipeRefreshLayout.setRefreshing(false);
         }
     }
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,32 +101,29 @@ public class MainActivity extends AppCompatActivity {
         viewPager = findViewById(R.id.view_pager);
         tabs = findViewById(R.id.tabs);
         mSwipeRefreshLayout = findViewById(R.id.swipeRefresh);
+        text_data = findViewById(R.id.data);
+        no_internet = findViewById(R.id.no_internet);
 
         sectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
 
-        viewPager.setAdapter(sectionsPagerAdapter);
+        ArrayList<String> array = new ArrayList<>();
 
+        viewPager.setAdapter(sectionsPagerAdapter);
         tabs.setupWithViewPager(viewPager);
 
-        new InternetCheck(internet -> {
-            QueryURL();
-        });
+        UpdateDate();
+        QueryURL();
 
         //слушатель свайпа вниз для обновления данных
         mSwipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
-                new Handler().postDelayed(new Runnable() {
+                new InternetCheck().execute();
+                new Runnable() {
                     @Override
                     public void run() {
-                        new InternetCheck(internet -> {
-                            clearTable();
-                            QueryURL();
-                        });
-                        // Отменяем анимацию обновления
-                        mSwipeRefreshLayout.setRefreshing(false);
                     }
-                }, 3000);
+                };
             }
         });
         mSwipeRefreshLayout.setColorSchemeColors(
@@ -129,6 +144,8 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         protected void onPostExecute(String responce) {
+            DateFormat dateFormat = new SimpleDateFormat("HH:mm dd.MM.yy");
+            Date date = new Date();
             // создаем объект для данных
             cv = new ContentValues();
             // подключаемся к БД
@@ -141,6 +158,10 @@ public class MainActivity extends AppCompatActivity {
                 JSONObject jsonResponce = new JSONObject(responce);
                 JSONObject jsonObject = jsonResponce.getJSONObject("Valute");
                 Iterator<String> keys = jsonObject.keys();
+
+                // подключаемся к БД
+                SQLiteDatabase db = dbHelper.getWritableDatabase();
+
                 cv.put("name", "Российский рубль");
                 cv.put("charcode", "RUB");
                 cv.put("value", "1");
@@ -161,6 +182,10 @@ public class MainActivity extends AppCompatActivity {
                     // вставляем запись
                     db.insert("valute", null, cv);
                 }
+                // создаем объект для данных
+                ContentValues cv1 = new ContentValues();
+                cv1.put("date_text", "" + dateFormat.format(date));
+                db.insert("date_query", null, cv1);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -168,6 +193,24 @@ public class MainActivity extends AppCompatActivity {
             dbHelper.close();
             // для перезагрузки фрагментов после получения новых данных
             sectionsPagerAdapter.notifyDataSetChanged();
+            text_data.setText(dateFormat.format(date));
+        }
+    }
+
+    public void UpdateDate(){
+        // подключаемся к БД
+        db = connectDB();
+        Cursor cur1 = db.rawQuery("SELECT * FROM date_query", null);
+        // ставим позицию курсора на первую строку выборки
+        // если в выборке нет строк, вернется false
+        if (cur1.moveToFirst()) {
+            // определяем номера столбцов по имени в выборке
+            int dateColIndex = cur1.getColumnIndex("date_text");
+            do {
+                text_data.setText(cur1.getString(dateColIndex));
+                // переход на следующую строку
+                // а если следующей нет (текущая - последняя), то false - выходим из цикла
+            } while (cur1.moveToNext());
         }
     }
 
@@ -183,7 +226,7 @@ public class MainActivity extends AppCompatActivity {
             if (cur.getInt(0) == 0) {
                 try {
                     url = new URL("https://www.cbr-xml-daily.ru/daily_json.js");
-                    new CBR_query().execute(url);//Создаем новый Thread (нить/поток)
+                    new CBR_query().execute(url);// Создаем новый Thread (нить/поток)
                 } catch (
                         IOException e) {
                     e.printStackTrace();
@@ -209,7 +252,9 @@ public class MainActivity extends AppCompatActivity {
         db = connectDB();
         // удаляем все записи
         db.delete("valute", null, null);
+        db.delete("date_query", null, null);
         //обнуляем значение autoincrement (необязательно)
         db.execSQL("DELETE FROM SQLITE_SEQUENCE WHERE NAME = 'valute'");
+        db.execSQL("DELETE FROM SQLITE_SEQUENCE WHERE NAME = 'date_query'");
     }
 }

@@ -6,4 +6,6 @@
     <!-- TODO: Remove or change this placeholder text -->
     <string name="fragment1">Hello blank fragment1</string>
     <string name="fragment2">Hello blank fragment2</string>
+    <string name="data_text">Дата последнего обновления</string>
+    <string name="no_internet">Нет подключения к интернету</string>
 </resources>
