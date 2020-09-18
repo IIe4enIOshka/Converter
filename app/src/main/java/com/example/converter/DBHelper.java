@@ -1,9 +1,10 @@
+
+//  Класс управления БД
 package com.example.converter;
 
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
-import android.util.Log;
 
 public class DBHelper extends SQLiteOpenHelper {
     final String LOG_TAG = "myLogs";
@@ -28,7 +29,7 @@ public class DBHelper extends SQLiteOpenHelper {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
 
-    public static final String DATABASE_CREATE_TABLE1 = "create table "
+    public static final String DATABASE_CREATE_TABLE1 = "create table " //  таблица для хранения списка валют
             + TABLE_VALUTE
             + "("
             + COLUMN_ID + " integer primary key autoincrement, "
@@ -38,7 +39,7 @@ public class DBHelper extends SQLiteOpenHelper {
             + COLUMN_PREVIOUS + " text not null"
             + ");";
 
-    public static final String DATABASE_CREATE_TABLE2 = "create table "
+    public static final String DATABASE_CREATE_TABLE2 = "create table " //  таблица для хранения даты и времени последнего обновления данных
             + TABLE_DATE
             + "("
             + COLUMN_ID + " integer primary key autoincrement, "
@@ -47,25 +48,8 @@ public class DBHelper extends SQLiteOpenHelper {
 
     @Override
     public void onCreate(SQLiteDatabase db) {
-
-        // Database creation SQL statement
-
         db.execSQL(DATABASE_CREATE_TABLE1);
         db.execSQL(DATABASE_CREATE_TABLE2);
-
-//        Log.d(LOG_TAG, "--- onCreate database ---");
-//        // создаем таблицу с полями
-//        db.execSQL("create table valute ("
-//                + "id integer primary key autoincrement,"
-//                + "name text,"
-//                + "charcode text,"
-//                + "value text,"
-//                + "previous text" + ");");
-//
-//        // создаем таблицу с полями
-//        db.execSQL("create table date_query ("
-//                + "id integer primary key autoincrement,"
-//                + "date_text text" + ");");
     }
 
     @Override

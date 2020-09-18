@@ -1,3 +1,5 @@
+
+//  Класс для отправки запроса и получения ответа от сервера (сайта)
 package com.example.converter;
 
 import java.io.IOException;

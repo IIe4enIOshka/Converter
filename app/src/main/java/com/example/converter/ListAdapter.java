@@ -1,3 +1,5 @@
+
+//  класс адаптер для отображения списка валют
 package com.example.converter;
 
 import android.content.Context;

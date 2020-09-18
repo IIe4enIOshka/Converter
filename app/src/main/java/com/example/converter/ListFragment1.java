@@ -1,37 +1,32 @@
+
+//Класс первого фрагмента для вывода списка валют на экран с помощью RecyclerList
 package com.example.converter;
 
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.os.AsyncTask;
 import android.os.Bundle;
-
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-
 import java.util.ArrayList;
 
 /**
  * A simple {@link Fragment} subclass.
- * Use the {@link BlankFragment1#newInstance} factory method to
+ * Use the {@link ListFragment1#newInstance} factory method to
  * create an instance of this fragment.
  */
-public class BlankFragment1 extends Fragment {
+public class ListFragment1 extends Fragment {
 
+    //  объявление переменных
     private ArrayList<Valute> arrayList;
     private RecyclerView recyclerList;
     private ListAdapter listAdapter;
     private Valute valute;
-
     private DBHelper dbHelper;
     private SQLiteDatabase db;
-
-    final String LOG_TAG = "myLogs";
 
     // TODO: Rename parameter arguments, choose names that match
     // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
@@ -42,7 +37,7 @@ public class BlankFragment1 extends Fragment {
     private String mParam1;
     private String mParam2;
 
-    public BlankFragment1() {
+    public ListFragment1() {
         // Required empty public constructor
     }
 
@@ -55,8 +50,8 @@ public class BlankFragment1 extends Fragment {
      * @return A new instance of fragment BlankFragment1.
      */
     // TODO: Rename and change types and number of parameters
-    public static BlankFragment1 newInstance(String param1, String param2) {
-        BlankFragment1 fragment = new BlankFragment1();
+    public static ListFragment1 newInstance(String param1, String param2) {
+        ListFragment1 fragment = new ListFragment1();
         Bundle args = new Bundle();
         args.putString(ARG_PARAM1, param1);
         args.putString(ARG_PARAM2, param2);
@@ -78,7 +73,7 @@ public class BlankFragment1 extends Fragment {
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_blank1, container, false);
 
-        recyclerList = view.findViewById(R.id.recyclerView);
+        recyclerList = view.findViewById(R.id.recyclerView);    //  список для вывода данных
 
         LinearLayoutManager layoutManager = new LinearLayoutManager(getContext());
         recyclerList.setLayoutManager(layoutManager);
@@ -88,33 +83,27 @@ public class BlankFragment1 extends Fragment {
 
         return view;
     }
-
-    public void UpdateFrame(){
-        Log.d(LOG_TAG, "update");
+    //  функция для выгрузки данных из таблицы и передачи адаптеру списка объектов
+    public void UpdateFrame() {
         listAdapter = new ListAdapter();
         arrayList = new ArrayList<>();
         db = connectDB();
         // делаем запрос на выборку всех данных из таблицы valute, получаем Cursor
         Cursor c = db.query("valute", null, null, null, null, null, null);
-
         // ставим позицию курсора на первую строку выборки
         // если в выборке нет строк, вернется false
         if (c.moveToFirst()) {
             // определяем номера столбцов по имени в выборке
-            int idColIndex = c.getColumnIndex("id");
             int nameColIndex = c.getColumnIndex("name");
             int charcodeColIndex = c.getColumnIndex("charcode");
             int valueColIndex = c.getColumnIndex("value");
             int previousColIndex = c.getColumnIndex("previous");
+            c.moveToNext();
             do {
-//                Log.d(LOG_TAG,
-//                        "ID = " + c.getInt(idColIndex) +
-//                                ", name = " + c.getString(nameColIndex) +
-//                                ", charcode = " + c.getString(charcodeColIndex) +
-//                                ", value = " + c.getString(valueColIndex) +
-//                                ", previous = " + c.getString(previousColIndex));
                 // получаем значения по номерам столбцов
+                //  создаем объект javabean и передаем туда наши данные
                 valute = new Valute(c.getString(nameColIndex), c.getString(charcodeColIndex), c.getString(valueColIndex), c.getString(previousColIndex));
+                //  добавляем объект в список
                 arrayList.add(valute);
                 // переход на следующую строку
                 // а если следующей нет (текущая - последняя), то false - выходим из цикла
@@ -126,7 +115,6 @@ public class BlankFragment1 extends Fragment {
         recyclerList.setAdapter(listAdapter);
         c.close();
     }
-
     //  для подключения к БД
     public SQLiteDatabase connectDB() {
         // создаем объект для создания и управления версиями БД

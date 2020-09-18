@@ -9,35 +9,22 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Handler;
-import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
-
 import com.google.android.material.tabs.TabLayout;
-
-import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import androidx.viewpager.widget.ViewPager;
 import androidx.appcompat.app.AppCompatActivity;
-
-import org.json.JSONException;
 import org.json.JSONObject;
-
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.SocketAddress;
 import java.net.URL;
 import java.text.DateFormat;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.Iterator;
 
 import static com.example.converter.DAO.getResponceFromURL;
-
 
 public class MainActivity extends AppCompatActivity {
 
@@ -48,77 +35,35 @@ public class MainActivity extends AppCompatActivity {
     private TabLayout tabs;
     private SwipeRefreshLayout mSwipeRefreshLayout;
     private SectionsPagerAdapter sectionsPagerAdapter;
-
     private TextView text_data;
     private TextView no_internet;
-
-    final String LOG_TAG = "myLogs";
-
-    class InternetCheck extends AsyncTask<Void, Void, Boolean> {
-
-        @Override
-        protected Boolean doInBackground(Void... voids) {
-            Runtime runtime = Runtime.getRuntime();
-            try {
-                Process ipProcess = runtime.exec("/system/bin/ping -c 1 8.8.8.8");
-                int exitValue = ipProcess.waitFor();
-                System.out.println(exitValue);
-                return (exitValue == 1);
-            } catch (IOException e) {
-                e.printStackTrace();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
-            return false;
-        }
-
-        @Override
-        protected void onPostExecute(Boolean internet) {
-            if (internet) {
-                clearTable();
-                QueryURL();
-            } else {
-                no_internet.setVisibility(View.VISIBLE);
-                new Handler().postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        no_internet.setVisibility(View.GONE);
-                    }
-                }, 5000);
-
-            }
-            mSwipeRefreshLayout.setRefreshing(false);
-        }
-    }
-
+    private CBR_query query;
+    private int time_update = 30;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        //получаем объекты
+
         viewPager = findViewById(R.id.view_pager);
         tabs = findViewById(R.id.tabs);
         mSwipeRefreshLayout = findViewById(R.id.swipeRefresh);
-        text_data = findViewById(R.id.data);
-        no_internet = findViewById(R.id.no_internet);
+        text_data = findViewById(R.id.data);    //  поле даты последнего обновления данных
+        no_internet = findViewById(R.id.no_internet);   //  информационное поле
 
         sectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
-
-        ArrayList<String> array = new ArrayList<>();
 
         viewPager.setAdapter(sectionsPagerAdapter);
         tabs.setupWithViewPager(viewPager);
 
+        starting_checks();
         UpdateDate();
-        QueryURL();
 
-        //слушатель свайпа вниз для обновления данных
+        //  слушатель свайпа вниз для обновления данных
         mSwipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
-                new InternetCheck().execute();
+                InternetCheck();
                 new Runnable() {
                     @Override
                     public void run() {
@@ -130,6 +75,93 @@ public class MainActivity extends AppCompatActivity {
                 Color.RED, Color.GREEN, Color.BLUE, Color.CYAN);
     }
 
+    //  стартовые проверки на наличие данных и их "свежесть"
+    public void starting_checks() {
+        //  при старте проверяем есть ли у нас уже таблица с данными
+        db = connectDB();
+        Cursor cur = db.rawQuery("SELECT COUNT(*) FROM valute", null);
+        if (cur != null) {
+            cur.moveToFirst();
+            if (cur.getInt(0) == 0) {
+                InternetCheck();
+            } else {
+                DateFormat dateFormat = new SimpleDateFormat("HH:mm dd.MM.yy");
+                Date date_new = new Date();
+                Date date_old = null;
+
+                Cursor cur1 = db.rawQuery("SELECT * FROM date_query", null);
+                // ставим позицию курсора на первую строку выборки
+                // если в выборке нет строк, вернется false
+                if (cur1.moveToFirst()) {
+                    // определяем номера столбцов по имени в выборке
+                    int dateColIndex = cur1.getColumnIndex("date_text");
+                    do {
+                        try {
+                            date_old = new SimpleDateFormat("HH:mm dd.MM.yy").parse(cur1.getString(dateColIndex));
+                        } catch (ParseException e) {
+                            e.printStackTrace();
+                        }
+                        // переход на следующую строку
+                        // а если следующей нет (текущая - последняя), то false - выходим из цикла
+                    } while (cur1.moveToNext());
+                }
+
+                long milliseconds = date_new.getTime() - date_old.getTime();
+                int minutes = (int) (milliseconds / (60 * 1000));
+//                int hours = (int) (milliseconds / (60 * 60 * 1000));
+//                int days = (int) (milliseconds / (24 * 60 * 60 * 1000));
+                if (minutes > time_update) {  //  устанавливаем время после которого данные считаются устаревшими и нужно обновление
+                    InternetCheck();
+                }
+            }
+        }
+        cur.close();
+        dbHelper.close();
+    }
+
+    //  Проверка наличия интернета с помощью hasConnection
+    public void InternetCheck() {
+        if (hasConnection(this)) {
+            no_internet.setVisibility(View.GONE);
+            QueryURL();
+        } else {
+            mSwipeRefreshLayout.setRefreshing(false);
+            no_internet.setVisibility(View.VISIBLE);
+        }
+    }
+
+    //  проверка интернет соединения
+    public static boolean hasConnection(final Context context) {
+        ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo wifiInfo = cm.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+        if (wifiInfo != null && wifiInfo.isConnected()) {
+            return true;
+        }
+        wifiInfo = cm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
+        if (wifiInfo != null && wifiInfo.isConnected()) {
+            return true;
+        }
+        wifiInfo = cm.getActiveNetworkInfo();
+        if (wifiInfo != null && wifiInfo.isConnected()) {
+            return true;
+        }
+        return false;
+    }
+
+    //  для отправки запроса на сайт для получения новых данных о валютах
+    public void QueryURL() {
+        URL url = null;
+        try {
+            url = new URL("https://www.cbr-xml-daily.ru/daily_json.js");
+            query = new CBR_query();
+            query.execute(url);// Создаем новый Thread (нить/поток)
+        } catch (
+                IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    //  класс расширенный AsyncTask для отправки ассинхроного запроса к сайту
     class CBR_query extends AsyncTask<URL, Void, String> {
         @Override
         protected String doInBackground(URL... urls) {
@@ -139,11 +171,14 @@ public class MainActivity extends AppCompatActivity {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            return response;
+            if (response != null)
+                return response;
+            else return null;
         }
 
         @Override
-        protected void onPostExecute(String responce) {
+        protected void onPostExecute(String response) {
+            clearTable();
             DateFormat dateFormat = new SimpleDateFormat("HH:mm dd.MM.yy");
             Date date = new Date();
             // создаем объект для данных
@@ -155,7 +190,7 @@ public class MainActivity extends AppCompatActivity {
             String Value = "";
             String Previous = "";
             try {
-                JSONObject jsonResponce = new JSONObject(responce);
+                JSONObject jsonResponce = new JSONObject(response);
                 JSONObject jsonObject = jsonResponce.getJSONObject("Valute");
                 Iterator<String> keys = jsonObject.keys();
 
@@ -194,10 +229,11 @@ public class MainActivity extends AppCompatActivity {
             // для перезагрузки фрагментов после получения новых данных
             sectionsPagerAdapter.notifyDataSetChanged();
             text_data.setText(dateFormat.format(date));
+            mSwipeRefreshLayout.setRefreshing(false);
         }
     }
 
-    public void UpdateDate(){
+    public void UpdateDate() {
         // подключаемся к БД
         db = connectDB();
         Cursor cur1 = db.rawQuery("SELECT * FROM date_query", null);
@@ -212,29 +248,6 @@ public class MainActivity extends AppCompatActivity {
                 // а если следующей нет (текущая - последняя), то false - выходим из цикла
             } while (cur1.moveToNext());
         }
-    }
-
-    //Для отправки запроса на сайт для получения новых данных о валютах
-    public void QueryURL() {
-        Log.d(LOG_TAG, "запрос");
-        URL url = null;
-        // подключаемся к БД
-        db = connectDB();
-        Cursor cur = db.rawQuery("SELECT COUNT(*) FROM valute", null);
-        if (cur != null) {
-            cur.moveToFirst();
-            if (cur.getInt(0) == 0) {
-                try {
-                    url = new URL("https://www.cbr-xml-daily.ru/daily_json.js");
-                    new CBR_query().execute(url);// Создаем новый Thread (нить/поток)
-                } catch (
-                        IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-        cur.close();
-        dbHelper.close();
     }
 
     //Для подключения к БД

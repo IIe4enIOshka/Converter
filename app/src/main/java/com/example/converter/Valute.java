@@ -1,3 +1,5 @@
+
+//  javabean класс валют
 package com.example.converter;
 
 public class Valute {
